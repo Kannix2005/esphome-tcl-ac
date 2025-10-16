@@ -7,17 +7,23 @@
 namespace esphome {
 namespace tcl_ac {
 
-// Protocol Constants - VALIDATED from UART log analysis (53 packets)
+// Protocol Constants - VALIDATED from UART log analysis (both.txt)
 
-// Packet Headers
+// Packet Headers - CRITICAL: Direction matters!
+// MCU → AC: BB 00 01
 static const uint8_t HEADER_MCU_TO_AC_0 = 0xBB;
 static const uint8_t HEADER_MCU_TO_AC_1 = 0x00;
 static const uint8_t HEADER_MCU_TO_AC_2 = 0x01;
+// AC → MCU: BB 01 00 (bytes 1-2 swapped!)
+static const uint8_t HEADER_AC_TO_MCU_0 = 0xBB;
+static const uint8_t HEADER_AC_TO_MCU_1 = 0x01;
+static const uint8_t HEADER_AC_TO_MCU_2 = 0x00;
 
 // Commands
-static const uint8_t CMD_SET_PARAMS = 0x03;
-static const uint8_t CMD_POLL = 0x04;
+static const uint8_t CMD_SET_PARAMS = 0x03;  // MCU → AC: Set parameters (AC responds with same cmd)
+static const uint8_t CMD_POLL = 0x04;        // MCU → AC: Poll status
 static const uint8_t CMD_TEMP_RESPONSE = 0x05;
+static const uint8_t CMD_STATUS_ECHO = 0x06;  // AC → MCU: Status echo (received only)
 static const uint8_t CMD_SHORT_STATUS = 0x09;
 static const uint8_t CMD_POWER = 0x0A;
 static const uint8_t CMD_TIME = 0x0B;

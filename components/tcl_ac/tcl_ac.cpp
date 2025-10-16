@@ -28,8 +28,9 @@ void TclAcClimate::loop() {
     
     // Check if we have a complete packet (minimum 7 bytes)
     if (this->rx_buffer_.size() >= 7) {
-      // Check for valid header (BB 00 04 = AC to MCU)
-      if (this->rx_buffer_[0] == 0xBB && this->rx_buffer_[1] == 0x00 && this->rx_buffer_[2] == 0x04) {
+      // Check for valid header (BB 01 00 = AC to MCU)
+      // Note: Packets FROM AC have header BB 01 00, TO AC have header BB 00 01
+      if (this->rx_buffer_[0] == 0xBB && this->rx_buffer_[1] == 0x01 && this->rx_buffer_[2] == 0x00) {
         uint8_t cmd = this->rx_buffer_[3];
         uint8_t length = this->rx_buffer_[4];
         size_t expected_size = 5 + length + 1; // header(3) + cmd(1) + len(1) + data + checksum(1)
