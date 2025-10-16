@@ -40,12 +40,26 @@ void TclAcClimate::loop() {
           uint8_t calculated = this->calculate_checksum_(this->rx_buffer_.data(), expected_size - 1);
           uint8_t received = this->rx_buffer_[expected_size - 1];
           
+          ESP_LOGV(TAG, "Received packet: cmd=0x%02X, len=%d, checksum=0x%02X (calc=0x%02X)", 
+                   cmd, length, received, calculated);
+          
           if (calculated == received) {
             // Process packet based on command
-            if (cmd == CMD_SHORT_STATUS) {
+            if (cmd == CMD_POLL || cmd == CMD_SET_PARAMS) {
+              // Command 0x03 (SET response) and 0x04 (POLL response) have same 55-byte data format
+              ESP_LOGD(TAG, "Processing status packet (cmd 0x%02X)", cmd);
               this->parse_status_packet_(this->rx_buffer_.data() + 5, length);
             } else if (cmd == CMD_TEMP_RESPONSE) {
+              ESP_LOGD(TAG, "Processing temp response");
               this->parse_temp_response_(this->rx_buffer_.data() + 5, length);
+            } else if (cmd == CMD_SHORT_STATUS) {
+              ESP_LOGD(TAG, "Processing short status");
+              this->parse_status_packet_(this->rx_buffer_.data() + 5, length);
+            } else if (cmd == CMD_STATUS_ECHO) {
+              ESP_LOGD(TAG, "Processing status echo (0x06)");
+              this->parse_status_packet_(this->rx_buffer_.data() + 5, length);
+            } else {
+              ESP_LOGW(TAG, "Unknown command: 0x%02X", cmd);
             }
           } else {
             ESP_LOGW(TAG, "Checksum mismatch: expected 0x%02X, got 0x%02X", calculated, received);
