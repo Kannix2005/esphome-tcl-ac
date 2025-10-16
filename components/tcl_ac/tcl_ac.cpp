@@ -420,17 +420,19 @@ void TclAcClimate::parse_status_packet_(const uint8_t *data, size_t length) {
   this->turbo_mode_ = turbo_on;
   this->quiet_mode_ = quiet_on;
   
-  // Temperature parsing (validated from logs)
-  // For 55-byte responses, target temp is at different position
-  // Looking at received packets: ...23:25:3F:... where 0x23=35, 35-12=23°C
-  // In 55-byte packet: byte 30 overall = data[25] in payload
+  // Temperature parsing (FIXED: validated from direct UART analysis)
+  // STATUS response structure:
+  //   - Packet bytes 0-4: Header (BB 01 00 04 37)
+  //   - Packet bytes 5-59: Payload (55 bytes, mapped as data[0] to data[54])
+  //   - Packet byte 60: Checksum
+  // Temperature is at PACKET byte 35 = PAYLOAD data[30] (35 - 5 = 30)
   if (length >= 55) {
     // 55-byte response (from 0x04 POLL or 0x03 SET response)
-    // Byte 30 (data[25]): Target temperature
-    if (data[25] > 12) {
-      this->target_temperature = this->raw_to_celsius_(data[25]);
-      ESP_LOGV(TAG, "Parsed target temp from byte 30: raw=0x%02X, temp=%.1f°C", 
-               data[25], this->target_temperature);
+    // Byte 35 in overall packet = data[30] in payload: Target temperature
+    if (data[30] > 12) {
+      this->target_temperature = this->raw_to_celsius_(data[30]);
+      ESP_LOGV(TAG, "Parsed target temp from packet byte 35 (data[30]): raw=0x%02X, temp=%.1f°C", 
+               data[30], this->target_temperature);
     }
   } else {
     // 32-byte response (fallback)
