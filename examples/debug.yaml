@@ -1,0 +1,52 @@
+# Debug configuration for TCL AC
+# Use this to troubleshoot component loading issues
+
+esphome:
+  name: tclac-debug
+  platform: ESP32
+  board: esp32dev
+
+# Enable verbose logging
+logger:
+  level: VERBOSE
+  logs:
+    tcl_ac: VERBOSE
+    climate: VERBOSE
+    uart: VERBOSE
+    component: VERBOSE
+
+wifi:
+  ssid: "YourWiFi"
+  password: "YourPassword"
+
+api:
+ota:
+
+# UART configuration
+uart:
+  id: uart_bus
+  tx_pin: GPIO43  # Adjust for your board
+  rx_pin: GPIO44  # Adjust for your board
+  baud_rate: 9600
+  parity: EVEN
+  data_bits: 8
+  stop_bits: 1
+  debug:
+    direction: BOTH  # Log all UART traffic
+    dummy_receiver: false
+
+# External component (use latest from GitHub)
+external_components:
+  - source: github://Kannix2005/esphome-tcl-ac
+    components: [ tcl_ac ]
+    refresh: 0s  # Always fetch latest
+
+# TCL AC Climate with verbose config
+climate:
+  - platform: tcl_ac
+    id: my_tcl_ac
+    name: "TCL Air Conditioner"
+    beeper: true
+    display: false
+    vertical_direction: "max_down"
+    horizontal_direction: "max_right"
