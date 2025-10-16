@@ -237,30 +237,45 @@ void TclAcClimate::create_set_packet_(uint8_t *packet) {
   packet[5] = 0x03;
   packet[6] = 0x01;
   
-  // Byte 7 (offset 7): Mode byte + FLAGS
+  // Byte 7 (offset 7): Mode byte with FLAGS
+  // Mode encoding (validated from FINALE_ZUSAMMENFASSUNG.md):
+  // AUTO:    0x04 | 0xA0 = 0xA4  (Bits 2,5,7)
+  // COOLING: 0x04 | 0x20 = 0x24  (Bits 2,5)
+  // DRYING:  0x04 | 0x40 = 0x44  (Bits 2,6)
+  // HEATING: 0x04 | 0x60 = 0x64  (Bits 2,5,6)
+  // FAN:     0x04 | 0x80 = 0x84  (Bits 2,7)
+  
   packet[7] = MODE_BASE;  // Start with base 0x04
   
-  // Add mode-specific flags (observed patterns from log)
-  if (this->mode == climate::CLIMATE_MODE_HEAT) {
-    // Heating typically has display ON (6/6 heating packets in log)
-    if (this->display_enabled_) {
-      packet[7] |= FLAG_DISPLAY_ON;
-    }
-  } else if (this->mode == climate::CLIMATE_MODE_AUTO) {
-    // Auto mode can have ECO
-    if (this->eco_mode_) {
-      packet[7] |= FLAG_ECO_MODE;
-    }
+  // Add mode-specific bits
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_AUTO:
+      packet[7] |= 0xA0;  // AUTO: 0xA4
+      if (this->eco_mode_) {
+        packet[7] |= FLAG_ECO_MODE;  // Can combine with ECO
+      }
+      break;
+    case climate::CLIMATE_MODE_COOL:
+      packet[7] |= 0x20;  // COOLING: 0x24
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      packet[7] |= 0x40;  // DRYING: 0x44
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      packet[7] |= 0x60;  // HEATING: 0x64
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      packet[7] |= 0x80;  // FAN: 0x84
+      break;
+    default:
+      packet[7] |= 0x20;  // Default to COOLING
+      break;
   }
   
-  // Add display flag if enabled
-  if (this->display_enabled_) {
-    packet[7] |= FLAG_DISPLAY_ON;
-  }
-  
-  // Add beeper flag (ON by default - 98% of packets)
-  if (this->beeper_enabled_) {
-    packet[7] |= FLAG_BEEPER_ON;
+  // Note: Beeper flag (Bit 5) is already set by COOLING/HEATING modes (0x20/0x60)
+  // If beeper should be OFF, we need to clear it
+  if (!this->beeper_enabled_) {
+    packet[7] &= ~FLAG_BEEPER_ON;  // Clear bit 5
   }
   
   // Byte 8 (offset 8): Fan Speed + FLAGS
@@ -385,7 +400,11 @@ void TclAcClimate::parse_status_packet_(const uint8_t *data, size_t length) {
     return;
   }
   
-  // Parse status data (same structure as set packet)
+  // Parse status data based on 55-byte response format
+  // data[0-1]: Command specific data
+  // data[2]: Mode byte with flags
+  // data[3]: Speed byte with flags
+  
   // Byte 2 (data[2]): Mode flags
   uint8_t mode_byte = data[2];
   bool display_on = (mode_byte & FLAG_DISPLAY_ON) != 0;
@@ -401,9 +420,23 @@ void TclAcClimate::parse_status_packet_(const uint8_t *data, size_t length) {
   this->turbo_mode_ = turbo_on;
   this->quiet_mode_ = quiet_on;
   
-  // Byte 26 (data[26]): Target temperature
-  if (data[26] > 0) {
-    this->target_temperature = this->raw_to_celsius_(data[26]);
+  // Temperature parsing (validated from logs)
+  // For 55-byte responses, target temp is at different position
+  // Looking at received packets: ...23:25:3F:... where 0x23=35, 35-12=23°C
+  // In 55-byte packet: byte 30 overall = data[25] in payload
+  if (length >= 55) {
+    // 55-byte response (from 0x04 POLL or 0x03 SET response)
+    // Byte 30 (data[25]): Target temperature
+    if (data[25] > 12) {
+      this->target_temperature = this->raw_to_celsius_(data[25]);
+      ESP_LOGV(TAG, "Parsed target temp from byte 30: raw=0x%02X, temp=%.1f°C", 
+               data[25], this->target_temperature);
+    }
+  } else {
+    // 32-byte response (fallback)
+    if (data[26] > 12) {
+      this->target_temperature = this->raw_to_celsius_(data[26]);
+    }
   }
   
   ESP_LOGD(TAG, "Status update - Temp: %.1f°C, ECO: %d, Turbo: %d, Quiet: %d", 
