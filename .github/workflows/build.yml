@@ -1,0 +1,48 @@
+name: ESPHome Build Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example: [basic, advanced]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install ESPHome
+        run: |
+          pip install esphome
+      
+      - name: Validate ${{ matrix.example }} example
+        run: |
+          # Create temporary config with secrets
+          cp examples/${{ matrix.example }}.yaml test-${{ matrix.example }}.yaml
+          
+          # Replace secrets with dummy values for testing
+          sed -i 's/!secret wifi_ssid/"TestSSID"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret wifi_password/"TestPassword"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret api_key/"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret ota_password/"testpass"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret web_password/"webpass"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret fallback_password/"fallback"/g' test-${{ matrix.example }}.yaml
+          sed -i 's|github://yourusername/esphome-tcl-ac|github://yourusername/esphome-tcl-ac@${{ github.sha }}|g' test-${{ matrix.example }}.yaml
+          
+          # Validate configuration
+          esphome config test-${{ matrix.example }}.yaml
+      
+      - name: Compile ${{ matrix.example }} example
+        run: |
+          esphome compile test-${{ matrix.example }}.yaml

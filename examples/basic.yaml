@@ -1,0 +1,46 @@
+# Basic ESPHome configuration for TCL AC
+# Minimal setup to get started quickly
+
+esphome:
+  name: tcl-ac
+  platform: ESP8266
+  board: d1_mini
+
+wifi:
+  ssid: "YourWiFiSSID"
+  password: "YourWiFiPassword"
+  
+  # Fallback hotspot
+  ap:
+    ssid: "TCL-AC-Fallback"
+    password: "12345678"
+
+# Enable logging (disable serial logging since we're using UART)
+logger:
+  level: INFO
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+
+# Enable OTA updates
+ota:
+
+# UART for AC communication
+uart:
+  tx_pin: GPIO1  # TX pin
+  rx_pin: GPIO3  # RX pin
+  baud_rate: 9600
+  parity: EVEN
+  data_bits: 8
+  stop_bits: 1
+
+# External component from GitHub
+external_components:
+  - source: github://yourusername/esphome-tcl-ac
+    components: [ tcl_ac ]
+
+# TCL AC Climate
+climate:
+  - platform: tcl_ac
+    name: "Air Conditioner"

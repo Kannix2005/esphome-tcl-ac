@@ -1,0 +1,207 @@
+# Advanced ESPHome configuration for TCL AC
+# Full configuration with all available options
+
+esphome:
+  name: tcl-ac-advanced
+  friendly_name: "Living Room AC"
+  platform: ESP8266
+  board: d1_mini
+  # Use ESP32 for more features
+  # platform: ESP32
+  # board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+  # Static IP (optional)
+  manual_ip:
+    static_ip: 192.168.1.100
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+  
+  # Fallback hotspot
+  ap:
+    ssid: "TCL-AC-Fallback"
+    password: !secret fallback_password
+
+# Enable logging with debug level
+logger:
+  level: DEBUG
+  baud_rate: 0  # Disable serial logging (UART is used for AC)
+  logs:
+    tcl_ac: DEBUG  # Detailed logs for TCL AC component
+    climate: INFO
+    uart: WARN
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+  
+  # Services for advanced control
+  services:
+    - service: set_health_mode
+      variables:
+        enabled: bool
+      then:
+        - lambda: |-
+            id(my_ac).set_health_mode(enabled);
+
+# Enable OTA updates
+ota:
+  password: !secret ota_password
+
+# Web server for local access (optional)
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: !secret web_password
+
+# UART for AC communication
+uart:
+  id: uart_bus
+  tx_pin: GPIO1   # For D1 Mini: GPIO1 (TX)
+  rx_pin: GPIO3   # For D1 Mini: GPIO3 (RX)
+  # For ESP32, use any available GPIO pins
+  # tx_pin: GPIO17
+  # rx_pin: GPIO16
+  baud_rate: 9600
+  parity: EVEN
+  data_bits: 8
+  stop_bits: 1
+  # Debug UART traffic (optional, very verbose)
+  # debug:
+  #   direction: BOTH
+  #   dummy_receiver: false
+
+# External component from GitHub
+external_components:
+  - source: github://yourusername/esphome-tcl-ac
+    components: [ tcl_ac ]
+    refresh: 1d  # Check for updates daily
+
+# TCL AC Climate with all options
+climate:
+  - platform: tcl_ac
+    id: my_ac
+    name: "Living Room AC"
+    
+    # Beeper: Enable/disable beep sounds on button press
+    # Recommended: true (98% of packets had beeper ON in analysis)
+    beeper: true
+    
+    # Display: Keep AC display always ON or OFF
+    # false = OFF (saves power, 87% of packets in analysis)
+    # true = ON (easier to see status on AC unit)
+    # Note: Heating mode may enable display automatically
+    display: false
+    
+    # Vertical air direction
+    # Options: max_up, up, center, down, max_down, swing
+    # Default: down (most common position - 75% in analysis)
+    vertical_direction: "down"
+    
+    # Horizontal air direction
+    # Options: max_left, left, center, right, max_right, swing
+    # Default: max_right (most common position - 60% in analysis)
+    horizontal_direction: "max_right"
+    
+    # Callbacks for state changes (optional)
+    on_state:
+      - logger.log:
+          format: "AC state changed: Mode=%s, Temp=%.1f°C"
+          args: ['id(my_ac).mode.c_str()', 'id(my_ac).target_temperature']
+
+# Optional: Binary sensors
+binary_sensor:
+  # Status LED (optional)
+  - platform: status
+    name: "AC Controller Status"
+
+# Optional: Sensors
+sensor:
+  # WiFi Signal
+  - platform: wifi_signal
+    name: "AC WiFi Signal"
+    update_interval: 60s
+  
+  # Uptime
+  - platform: uptime
+    name: "AC Uptime"
+
+# Optional: Text sensors
+text_sensor:
+  # ESPHome version
+  - platform: version
+    name: "AC ESPHome Version"
+  
+  # WiFi Info
+  - platform: wifi_info
+    ip_address:
+      name: "AC IP Address"
+    ssid:
+      name: "AC WiFi SSID"
+
+# Optional: Switches for advanced features
+switch:
+  # Restart button
+  - platform: restart
+    name: "AC Controller Restart"
+
+# Optional: Status LED
+status_led:
+  pin:
+    number: GPIO2  # D4 on D1 Mini (built-in LED)
+    inverted: true
+
+# Automations (examples)
+# Uncomment and customize as needed
+
+# # Turn AC on at specific time
+# time:
+#   - platform: homeassistant
+#     id: homeassistant_time
+#     on_time:
+#       - hours: 7
+#         minutes: 0
+#         then:
+#           - climate.control:
+#               id: my_ac
+#               mode: COOL
+#               target_temperature: 22°C
+
+# # Turn AC off when leaving home (via HA sensor)
+# binary_sensor:
+#   - platform: homeassistant
+#     id: someone_home
+#     entity_id: binary_sensor.someone_home
+#     on_state:
+#       then:
+#         - if:
+#             condition:
+#               binary_sensor.is_off: someone_home
+#             then:
+#               - climate.control:
+#                   id: my_ac
+#                   mode: "OFF"
+
+# # Eco mode based on electricity price (via HA sensor)
+# sensor:
+#   - platform: homeassistant
+#     id: electricity_price
+#     entity_id: sensor.electricity_price
+#     on_value:
+#       then:
+#         - if:
+#             condition:
+#               lambda: 'return x > 0.30;'  # If price > 0.30 €/kWh
+#             then:
+#               - climate.control:
+#                   id: my_ac
+#                   preset: ECO
+#             else:
+#               - climate.control:
+#                   id: my_ac
+#                   preset: NONE
