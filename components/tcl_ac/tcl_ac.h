@@ -73,16 +73,51 @@ static const uint8_t HORIZONTAL_POS_CENTER = 3;
 static const uint8_t HORIZONTAL_POS_RIGHT = 4;
 static const uint8_t HORIZONTAL_POS_MAX_RIGHT = 5;  // DEFAULT - 60% in log
 
-// Swing Modes
+// Swing Modes - Full range based on tclac protocol
 static const uint8_t VERTICAL_SWING_OFF = 0;
-static const uint8_t VERTICAL_SWING_SMALL = 1;
-static const uint8_t VERTICAL_SWING_MEDIUM = 2;
-static const uint8_t VERTICAL_SWING_FULL = 3;
+static const uint8_t VERTICAL_SWING_FULL = 1;      // UP_DOWN - Full swing
+static const uint8_t VERTICAL_SWING_UPPER = 2;     // UPSIDE - Upper half
+static const uint8_t VERTICAL_SWING_LOWER = 3;     // DOWNSIDE - Lower half
 
 static const uint8_t HORIZONTAL_SWING_OFF = 0;
-static const uint8_t HORIZONTAL_SWING_SMALL = 1;
-static const uint8_t HORIZONTAL_SWING_MEDIUM = 2;
-static const uint8_t HORIZONTAL_SWING_FULL = 4;
+static const uint8_t HORIZONTAL_SWING_FULL = 1;    // LEFT_RIGHT
+static const uint8_t HORIZONTAL_SWING_LEFT = 2;    // LEFTSIDE
+static const uint8_t HORIZONTAL_SWING_CENTER = 3;  // CENTER
+static const uint8_t HORIZONTAL_SWING_RIGHT = 4;   // RIGHTSIDE
+
+// Enums for better type safety
+enum class AirflowVerticalDirection : uint8_t {
+  LAST = 0,
+  MAX_UP = 1,
+  UP = 2,
+  CENTER = 3,
+  DOWN = 4,
+  MAX_DOWN = 5,
+};
+
+enum class AirflowHorizontalDirection : uint8_t {
+  LAST = 0,
+  MAX_LEFT = 1,
+  LEFT = 2,
+  CENTER = 3,
+  RIGHT = 4,
+  MAX_RIGHT = 5,
+};
+
+enum class VerticalSwingDirection : uint8_t {
+  OFF = 0,
+  UP_DOWN = 1,
+  UPSIDE = 2,
+  DOWNSIDE = 3,
+};
+
+enum class HorizontalSwingDirection : uint8_t {
+  OFF = 0,
+  LEFT_RIGHT = 1,
+  LEFTSIDE = 2,
+  CENTER = 3,
+  RIGHTSIDE = 4,
+};
 
 class TclAcClimate : public climate::Climate, public uart::UARTDevice, public Component {
  public:
@@ -95,6 +130,33 @@ class TclAcClimate : public climate::Climate, public uart::UARTDevice, public Co
   void set_display_enabled(bool enabled) { display_enabled_ = enabled; }
   void set_vertical_direction(uint8_t direction) { vertical_direction_ = direction; }
   void set_horizontal_direction(uint8_t direction) { horizontal_direction_ = direction; }
+  void set_vertical_swing_direction(uint8_t direction) { vertical_swing_direction_ = direction; }
+  void set_horizontal_swing_direction(uint8_t direction) { horizontal_swing_direction_ = direction; }
+  void set_force_mode(bool enabled) { force_mode_ = enabled; }
+
+  // Runtime control methods for Home Assistant automations
+  void set_vertical_airflow(AirflowVerticalDirection direction);
+  void set_horizontal_airflow(AirflowHorizontalDirection direction);
+  void set_vertical_swing(VerticalSwingDirection direction);
+  void set_horizontal_swing(HorizontalSwingDirection direction);
+  void set_display_state(bool state);
+  void set_beeper_state(bool state);
+  void set_eco_mode(bool enabled);
+  void set_turbo_mode(bool enabled);
+  void set_quiet_mode(bool enabled);
+  void set_health_mode(bool enabled);
+
+  // Getter methods for current state (for UI feedback)
+  bool get_beeper_state() const { return beeper_state_; }
+  bool get_display_state() const { return display_state_; }
+  bool get_eco_mode() const { return eco_mode_; }
+  bool get_turbo_mode() const { return turbo_mode_; }
+  bool get_quiet_mode() const { return quiet_mode_; }
+  bool get_health_mode() const { return health_mode_; }
+  AirflowVerticalDirection get_vertical_airflow() const { return vertical_airflow_; }
+  AirflowHorizontalDirection get_horizontal_airflow() const { return horizontal_airflow_; }
+  VerticalSwingDirection get_vertical_swing() const { return vertical_swing_; }
+  HorizontalSwingDirection get_horizontal_swing() const { return horizontal_swing_; }
 
   // Climate traits (capabilities)
   climate::ClimateTraits traits() override;
@@ -112,25 +174,38 @@ class TclAcClimate : public climate::Climate, public uart::UARTDevice, public Co
   // Packet parsing
   void parse_status_packet_(const uint8_t *data, size_t length);
   void parse_temp_response_(const uint8_t *data, size_t length);
+  void parse_power_response_(const uint8_t *data, size_t length);
   
   // Helper functions
   uint8_t get_fan_speed_();
   uint8_t celsius_to_raw_(float temp);
   float raw_to_celsius_(uint8_t raw);
 
-  // Configuration
+  // Configuration (from YAML)
   bool beeper_enabled_{true};      // DEFAULT: ON (98% in log)
   bool display_enabled_{false};    // DEFAULT: OFF (87% in log)
   uint8_t vertical_direction_{VERTICAL_POS_MAX_DOWN};    // DEFAULT (75% in log)
   uint8_t horizontal_direction_{HORIZONTAL_POS_MAX_RIGHT}; // DEFAULT (60% in log)
+  uint8_t vertical_swing_direction_{VERTICAL_SWING_OFF};
+  uint8_t horizontal_swing_direction_{HORIZONTAL_SWING_OFF};
+  bool force_mode_{true};  // If true, always apply settings on send
 
-  // State tracking
-  uint32_t last_transmit_{0};
-  uint32_t last_poll_{0};
+  // Runtime state (can be changed via actions)
+  bool beeper_state_{true};
+  bool display_state_{false};
   bool eco_mode_{false};
   bool turbo_mode_{false};
   bool quiet_mode_{false};
   bool health_mode_{false};
+  AirflowVerticalDirection vertical_airflow_{AirflowVerticalDirection::LAST};
+  AirflowHorizontalDirection horizontal_airflow_{AirflowHorizontalDirection::LAST};
+  VerticalSwingDirection vertical_swing_{VerticalSwingDirection::OFF};
+  HorizontalSwingDirection horizontal_swing_{HorizontalSwingDirection::OFF};
+
+  // Timing
+  uint32_t last_transmit_{0};
+  uint32_t last_poll_{0};
+  bool allow_send_{true};  // Flag to control when we can send commands
   
   // UART buffer
   std::vector<uint8_t> rx_buffer_;

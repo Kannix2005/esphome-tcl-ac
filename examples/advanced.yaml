@@ -4,11 +4,22 @@
 esphome:
   name: tcl-ac-advanced
   friendly_name: "Living Room AC"
-  platform: ESP8266
+
+# ESP8266 configuration
+esp8266:
   board: d1_mini
-  # Use ESP32 for more features
-  # platform: ESP32
-  # board: esp32dev
+
+# OR use ESP32 for more features:
+# esp32:
+#   board: esp32dev
+#   framework:
+#     type: arduino
+
+# OR use ESP32-S3:
+# esp32:
+#   board: esp32-s3-devkitc-1
+#   framework:
+#     type: arduino
 
 wifi:
   ssid: !secret wifi_ssid
@@ -38,19 +49,13 @@ logger:
 api:
   encryption:
     key: !secret api_key
-  
-  # Services for advanced control
-  services:
-    - service: set_health_mode
-      variables:
-        enabled: bool
-      then:
-        - lambda: |-
-            id(my_ac).set_health_mode(enabled);
+    # Generate key with: esphome config [file] | grep "api_key:"
+    # Or use: openssl rand -base64 32
 
 # Enable OTA updates
 ota:
-  password: !secret ota_password
+  - platform: esphome
+    password: !secret ota_password
 
 # Web server for local access (optional)
 web_server:
@@ -62,11 +67,12 @@ web_server:
 # UART for AC communication
 uart:
   id: uart_bus
-  tx_pin: GPIO1   # For D1 Mini: GPIO1 (TX)
-  rx_pin: GPIO3   # For D1 Mini: GPIO3 (RX)
-  # For ESP32, use any available GPIO pins
-  # tx_pin: GPIO17
-  # rx_pin: GPIO16
+  # Pin selection by platform:
+  # ESP8266 (D1 Mini): GPIO1 (TX), GPIO3 (RX)
+  # ESP32: GPIO17 (TX), GPIO16 (RX)
+  # ESP32-S3: GPIO43 (TX), GPIO44 (RX)
+  tx_pin: GPIO1
+  rx_pin: GPIO3
   baud_rate: 9600
   parity: EVEN
   data_bits: 8
@@ -78,7 +84,7 @@ uart:
 
 # External component from GitHub
 external_components:
-  - source: github://yourusername/esphome-tcl-ac
+  - source: github://Kannix2005/esphome-tcl-ac
     components: [ tcl_ac ]
     refresh: 1d  # Check for updates daily
 
@@ -143,12 +149,204 @@ text_sensor:
       name: "AC IP Address"
     ssid:
       name: "AC WiFi SSID"
+  
+  # Airflow status sensors
+  - platform: template
+    name: "AC Vertical Position Status"
+    id: vertical_position_status
+    icon: "mdi:arrow-up-down"
+    update_interval: 5s
+    lambda: |-
+      auto pos = id(my_ac)->get_vertical_position();
+      switch(pos) {
+        case 0: return {"Max Up"};
+        case 1: return {"Up"};
+        case 2: return {"Center"};
+        case 3: return {"Down"};
+        case 4: return {"Max Down"};
+        default: return {"Unknown"};
+      }
+  
+  - platform: template
+    name: "AC Horizontal Position Status"
+    id: horizontal_position_status
+    icon: "mdi:arrow-left-right"
+    update_interval: 5s
+    lambda: |-
+      auto pos = id(my_ac)->get_horizontal_position();
+      switch(pos) {
+        case 0: return {"Max Left"};
+        case 1: return {"Left"};
+        case 2: return {"Center"};
+        case 3: return {"Right"};
+        case 4: return {"Max Right"};
+        default: return {"Unknown"};
+      }
+  
+  - platform: template
+    name: "AC Vertical Swing Status"
+    id: vertical_swing_status
+    icon: "mdi:swap-vertical"
+    update_interval: 5s
+    lambda: |-
+      auto swing = id(my_ac)->get_vertical_swing();
+      switch(swing) {
+        case 0: return {"Fixed"};
+        case 1: return {"Top Zone"};
+        case 2: return {"Middle Zone"};
+        case 3: return {"Bottom Zone"};
+        case 4: return {"Full Swing"};
+        default: return {"Unknown"};
+      }
+  
+  - platform: template
+    name: "AC Horizontal Swing Status"
+    id: horizontal_swing_status
+    icon: "mdi:swap-horizontal"
+    update_interval: 5s
+    lambda: |-
+      auto swing = id(my_ac)->get_horizontal_swing();
+      switch(swing) {
+        case 0: return {"Fixed"};
+        case 1: return {"Left Zone"};
+        case 2: return {"Center Zone"};
+        case 3: return {"Right Zone"};
+        case 4: return {"Full Swing"};
+        default: return {"Unknown"};
+      }
 
 # Optional: Switches for advanced features
 switch:
+  # Health Mode (Ion Generator)
+  - platform: template
+    name: "AC Health Mode"
+    id: health_mode_switch
+    icon: "mdi:air-filter"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_health_mode(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_health_mode(false);'
+  
+  # Display Control
+  - platform: template
+    name: "AC Display"
+    id: display_switch
+    icon: "mdi:television"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_display(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_display(false);'
+  
+  # Beeper Control
+  - platform: template
+    name: "AC Beeper"
+    id: beeper_switch
+    icon: "mdi:volume-high"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_beeper(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_beeper(false);'
+  
   # Restart button
   - platform: restart
     name: "AC Controller Restart"
+
+# Optional: Select entities for airflow control
+select:
+  # Vertical fixed position control
+  - platform: template
+    name: "AC Vertical Position"
+    id: vertical_position_select
+    icon: "mdi:arrow-up-down"
+    optimistic: true
+    options:
+      - "Max Up"
+      - "Up"
+      - "Center"
+      - "Down"
+      - "Max Down"
+    initial_option: "Down"
+    set_action:
+      - lambda: |-
+          int pos = 2;  // Default to Center
+          if (x == "Max Up") pos = 0;
+          else if (x == "Up") pos = 1;
+          else if (x == "Center") pos = 2;
+          else if (x == "Down") pos = 3;
+          else if (x == "Max Down") pos = 4;
+          id(my_ac)->set_vertical_position(pos);
+  
+  # Horizontal fixed position control
+  - platform: template
+    name: "AC Horizontal Position"
+    id: horizontal_position_select
+    icon: "mdi:arrow-left-right"
+    optimistic: true
+    options:
+      - "Max Left"
+      - "Left"
+      - "Center"
+      - "Right"
+      - "Max Right"
+    initial_option: "Max Right"
+    set_action:
+      - lambda: |-
+          int pos = 2;  // Default to Center
+          if (x == "Max Left") pos = 0;
+          else if (x == "Left") pos = 1;
+          else if (x == "Center") pos = 2;
+          else if (x == "Right") pos = 3;
+          else if (x == "Max Right") pos = 4;
+          id(my_ac)->set_horizontal_position(pos);
+  
+  # Vertical swing direction control
+  - platform: template
+    name: "AC Vertical Swing"
+    id: vertical_swing_select
+    icon: "mdi:swap-vertical"
+    optimistic: true
+    options:
+      - "Fixed"
+      - "Top Zone"
+      - "Middle Zone"
+      - "Bottom Zone"
+      - "Full Swing"
+    initial_option: "Fixed"
+    set_action:
+      - lambda: |-
+          int swing = 0;  // Default to Fixed
+          if (x == "Fixed") swing = 0;
+          else if (x == "Top Zone") swing = 1;
+          else if (x == "Middle Zone") swing = 2;
+          else if (x == "Bottom Zone") swing = 3;
+          else if (x == "Full Swing") swing = 4;
+          id(my_ac)->set_vertical_swing(swing);
+  
+  # Horizontal swing direction control
+  - platform: template
+    name: "AC Horizontal Swing"
+    id: horizontal_swing_select
+    icon: "mdi:swap-horizontal"
+    optimistic: true
+    options:
+      - "Fixed"
+      - "Left Zone"
+      - "Center Zone"
+      - "Right Zone"
+      - "Full Swing"
+    initial_option: "Fixed"
+    set_action:
+      - lambda: |-
+          int swing = 0;  // Default to Fixed
+          if (x == "Fixed") swing = 0;
+          else if (x == "Left Zone") swing = 1;
+          else if (x == "Center Zone") swing = 2;
+          else if (x == "Right Zone") swing = 3;
+          else if (x == "Full Swing") swing = 4;
+          id(my_ac)->set_horizontal_swing(swing);
 
 # Optional: Status LED
 status_led:

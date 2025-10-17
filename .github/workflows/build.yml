@@ -38,7 +38,9 @@ jobs:
           sed -i 's/!secret ota_password/"testpass"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret web_password/"webpass"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret fallback_password/"fallback"/g' test-${{ matrix.example }}.yaml
-          sed -i 's|github://yourusername/esphome-tcl-ac|github://yourusername/esphome-tcl-ac@${{ github.sha }}|g' test-${{ matrix.example }}.yaml
+          
+          # Use the current commit for testing the component
+          sed -i 's|github://Kannix2005/esphome-tcl-ac|github://Kannix2005/esphome-tcl-ac@${{ github.sha }}|g' test-${{ matrix.example }}.yaml
           
           # Validate configuration
           esphome config test-${{ matrix.example }}.yaml

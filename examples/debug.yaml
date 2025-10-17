@@ -1,10 +1,26 @@
 # Debug configuration for TCL AC
-# Use this to troubleshoot component loading issues
+# Use this to troubleshoot communication issues, analyze protocol packets,
+# and diagnose component problems
 
 esphome:
   name: tclac-debug
-  platform: ESP32
+  friendly_name: "TCL AC Debug"
+
+# ESP32 configuration (recommended for debugging due to more memory)
+esp32:
   board: esp32dev
+  framework:
+    type: arduino
+
+# OR use ESP8266:
+# esp8266:
+#   board: d1_mini
+
+# OR use ESP32-S3:
+# esp32:
+#   board: esp32-s3-devkitc-1
+#   framework:
+#     type: arduino
 
 # Enable verbose logging
 logger:
@@ -16,24 +32,34 @@ logger:
     component: VERBOSE
 
 wifi:
-  ssid: "YourWiFi"
-  password: "YourPassword"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
 api:
-ota:
+  encryption:
+    key: !secret api_key
 
-# UART configuration
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# UART configuration with debugging enabled
 uart:
   id: uart_bus
-  tx_pin: GPIO43  # Adjust for your board
-  rx_pin: GPIO44  # Adjust for your board
+  # Pin selection by platform:
+  # ESP8266 (D1 Mini): GPIO1 (TX), GPIO3 (RX)
+  # ESP32: GPIO17 (TX), GPIO16 (RX)
+  # ESP32-S3: GPIO43 (TX), GPIO44 (RX)
+  tx_pin: GPIO17  # ESP32 default
+  rx_pin: GPIO16  # ESP32 default
   baud_rate: 9600
   parity: EVEN
   data_bits: 8
   stop_bits: 1
   debug:
-    direction: BOTH  # Log all UART traffic
+    direction: BOTH  # Log all UART traffic - VERY VERBOSE!
     dummy_receiver: false
+    # This will show raw hex bytes for protocol analysis
 
 # External component (use latest from GitHub)
 external_components:

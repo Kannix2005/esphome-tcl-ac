@@ -1,10 +1,26 @@
 # Basic ESPHome configuration for TCL AC
 # Minimal setup to get started quickly
+# Supports ESP8266, ESP32, ESP32-S2, ESP32-S3, ESP32-C3
 
 esphome:
   name: tcl-ac
-  platform: ESP8266
-  board: d1_mini
+  friendly_name: "TCL Air Conditioner"
+
+# Choose your board (uncomment ONE of these):
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# OR for ESP8266:
+# esp8266:
+#   board: d1_mini
+
+# OR for ESP32-S3:
+# esp32:
+#   board: esp32-s3-devkitc-1
+#   framework:
+#     type: arduino
 
 wifi:
   ssid: "YourWiFiSSID"
@@ -18,18 +34,23 @@ wifi:
 # Enable logging (disable serial logging since we're using UART)
 logger:
   level: INFO
-  baud_rate: 0
+  baud_rate: 0  # Disable serial logging to avoid conflicts with UART
 
 # Enable Home Assistant API
 api:
+  encryption:
+    key: !secret api_key  # Generate with: openssl rand -base64 32
 
 # Enable OTA updates
 ota:
+  - platform: esphome
+    password: !secret ota_password
 
 # UART for AC communication
+# Adjust pins according to your board!
 uart:
-  tx_pin: GPIO1  # TX pin
-  rx_pin: GPIO3  # RX pin
+  tx_pin: GPIO1   # TX pin (ESP8266: GPIO1, ESP32: GPIO17, ESP32-S3: GPIO43)
+  rx_pin: GPIO3   # RX pin (ESP8266: GPIO3, ESP32: GPIO16, ESP32-S3: GPIO44)
   baud_rate: 9600
   parity: EVEN
   data_bits: 8
@@ -37,10 +58,44 @@ uart:
 
 # External component from GitHub
 external_components:
-  - source: github://yourusername/esphome-tcl-ac
+  - source: github://Kannix2005/esphome-tcl-ac
     components: [ tcl_ac ]
 
-# TCL AC Climate
+# TCL AC Climate Component
 climate:
   - platform: tcl_ac
+    id: my_ac
     name: "Air Conditioner"
+    
+    # Optional: Configure default settings
+    beeper: true      # Enable beep sound
+    display: true     # Enable display
+
+# Optional: Template Switches for advanced control
+switch:
+  - platform: template
+    name: "AC Health Mode"
+    icon: "mdi:air-filter"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_health_mode(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_health_mode(false);'
+  
+  - platform: template
+    name: "AC Display"
+    icon: "mdi:monitor"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_display_state(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_display_state(false);'
+  
+  - platform: template
+    name: "AC Beeper"
+    icon: "mdi:volume-high"
+    optimistic: true
+    turn_on_action:
+      - lambda: 'id(my_ac)->set_beeper_state(true);'
+    turn_off_action:
+      - lambda: 'id(my_ac)->set_beeper_state(false);'
