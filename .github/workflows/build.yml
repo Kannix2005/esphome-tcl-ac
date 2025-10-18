@@ -34,7 +34,7 @@ jobs:
           # Replace secrets with dummy values for testing
           sed -i 's/!secret wifi_ssid/"TestSSID"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret wifi_password/"TestPassword"/g' test-${{ matrix.example }}.yaml
-          sed -i 's/!secret api_key/"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"/g' test-${{ matrix.example }}.yaml
+          sed -i 's/!secret api_key/"dGVzdGtleV8xMjM0NTY3ODkwMTIzNDU2Nzg5MDEy"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret ota_password/"testpass"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret web_password/"webpass"/g' test-${{ matrix.example }}.yaml
           sed -i 's/!secret fallback_password/"fallback"/g' test-${{ matrix.example }}.yaml
